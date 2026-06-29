@@ -1,8 +1,7 @@
-"""Hermes-compatible tool handlers for the Partner Follow-up Claw.
+"""Tool handlers for the Hermes plugin.
 
-These are thin wrappers around the existing src/ modules. Each handler
-receives a JSON-serialised input from the LLM and returns a JSON string
-that goes back into the conversation.
+Thin wrappers around src/ modules. Each handler takes JSON input from
+the LLM and returns a JSON string back into the conversation.
 """
 
 import json
@@ -10,7 +9,7 @@ import os
 import sys
 from datetime import date, datetime
 
-# Ensure project root is importable.
+# make sure project root is importable
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _PROJECT_ROOT not in sys.path:
     sys.path.insert(0, _PROJECT_ROOT)
@@ -19,7 +18,7 @@ from src import config, llm, tools as src_tools
 from src.schemas import Partner, Classification
 
 
-# Mutable state shared across tool calls within a single run.
+# shared state across tool calls within one run
 _state = {
     "partners": {},      # id -> Partner
     "run_dir": None,
@@ -34,9 +33,7 @@ def _run_dir() -> str:
     return _state["run_dir"]
 
 
-# ---------------------------------------------------------------------------
-# Tool 1: ingest_partners
-# ---------------------------------------------------------------------------
+# --- ingest_partners ---
 def handle_ingest_partners(data_path: str) -> str:
     """Load partner records from JSON. Returns JSON with partners + count."""
     with open(data_path, "r", encoding="utf-8") as fh:
@@ -52,9 +49,7 @@ def handle_ingest_partners(data_path: str) -> str:
     }, ensure_ascii=False)
 
 
-# ---------------------------------------------------------------------------
-# Tool 2: triage_partner
-# ---------------------------------------------------------------------------
+# --- triage_partner ---
 def handle_triage_partner(partner_id: str, reference_date: str) -> str:
     """Classify a single partner. Returns JSON classification."""
     partner = _state["partners"].get(partner_id)
@@ -68,9 +63,7 @@ def handle_triage_partner(partner_id: str, reference_date: str) -> str:
     return json.dumps(cls.to_dict(), ensure_ascii=False)
 
 
-# ---------------------------------------------------------------------------
-# Tool 3: draft_reminder
-# ---------------------------------------------------------------------------
+# --- draft_reminder ---
 def handle_draft_reminder(partner_id: str, partner_name: str, owner: str,
                           region: str, summary: str,
                           pending_actions: list = None) -> str:
@@ -99,9 +92,7 @@ def handle_draft_reminder(partner_id: str, partner_name: str, owner: str,
     }, ensure_ascii=False)
 
 
-# ---------------------------------------------------------------------------
-# Tool 4: create_escalation
-# ---------------------------------------------------------------------------
+# --- create_escalation ---
 def handle_create_escalation(**kwargs) -> str:
     """Create an escalation note and ticket. Returns JSON with paths + ticket ID."""
     partner_id = kwargs.get("partner_id", "")
@@ -140,7 +131,7 @@ def handle_create_escalation(**kwargs) -> str:
 
     rel_path = src_tools.write_escalation(_run_dir(), note)
 
-    # Create a ticket (if tickets module is available).
+    # create ticket if module is available
     ticket_id = None
     try:
         from src.tickets import TicketStore
@@ -149,7 +140,7 @@ def handle_create_escalation(**kwargs) -> str:
             ticket_id = store.create_ticket(note)
         store.close()
     except Exception:
-        pass  # Tickets are optional; don't crash.
+        pass  # tickets are optional
 
     src_tools.write_log(_run_dir(), {
         "stage": "ACT", "partner": partner_id,
@@ -163,9 +154,7 @@ def handle_create_escalation(**kwargs) -> str:
     }, ensure_ascii=False)
 
 
-# ---------------------------------------------------------------------------
-# Tool 5: generate_report
-# ---------------------------------------------------------------------------
+# --- generate_report ---
 def handle_generate_report(run_id: str, records: list) -> str:
     """Generate final report artifacts. Returns JSON with paths + totals."""
     def count(action: str) -> int:
@@ -213,9 +202,7 @@ def _build_summary(report: dict) -> str:
     return "\n".join(lines)
 
 
-# ---------------------------------------------------------------------------
-# Handler registry (name -> function)
-# ---------------------------------------------------------------------------
+# --- handler registry ---
 HANDLERS = {
     "ingest_partners": handle_ingest_partners,
     "triage_partner": handle_triage_partner,

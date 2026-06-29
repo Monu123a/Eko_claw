@@ -1,13 +1,10 @@
-"""Formal tool contracts (JSON schemas) for the Partner Follow-up Claw.
+"""Tool contracts (JSON schemas) for the Hermes plugin.
 
-Each schema defines the input/output contract for one agent tool, following
-the Hermes Agent plugin convention. These schemas are what the LLM "sees"
-when deciding which tool to call and how to call it.
+Each schema defines what the LLM sees when picking and calling a tool.
 """
 
-# ---------------------------------------------------------------------------
-# Tool 1: ingest_partners
-# ---------------------------------------------------------------------------
+
+# --- ingest_partners ---
 INGEST_PARTNERS_SCHEMA = {
     "name": "ingest_partners",
     "description": (
@@ -52,9 +49,8 @@ INGEST_PARTNERS_SCHEMA = {
     },
 }
 
-# ---------------------------------------------------------------------------
-# Tool 2: triage_partner
-# ---------------------------------------------------------------------------
+
+# --- triage_partner ---
 TRIAGE_PARTNER_SCHEMA = {
     "name": "triage_partner",
     "description": (
@@ -88,9 +84,8 @@ TRIAGE_PARTNER_SCHEMA = {
     },
 }
 
-# ---------------------------------------------------------------------------
-# Tool 3: draft_reminder
-# ---------------------------------------------------------------------------
+
+# --- draft_reminder ---
 DRAFT_REMINDER_SCHEMA = {
     "name": "draft_reminder",
     "description": (
@@ -123,9 +118,8 @@ DRAFT_REMINDER_SCHEMA = {
     },
 }
 
-# ---------------------------------------------------------------------------
-# Tool 4: create_escalation
-# ---------------------------------------------------------------------------
+
+# --- create_escalation ---
 CREATE_ESCALATION_SCHEMA = {
     "name": "create_escalation",
     "description": (
@@ -163,9 +157,8 @@ CREATE_ESCALATION_SCHEMA = {
     },
 }
 
-# ---------------------------------------------------------------------------
-# Tool 5: generate_report
-# ---------------------------------------------------------------------------
+
+# --- generate_report ---
 GENERATE_REPORT_SCHEMA = {
     "name": "generate_report",
     "description": (
@@ -203,9 +196,8 @@ GENERATE_REPORT_SCHEMA = {
     },
 }
 
-# ---------------------------------------------------------------------------
-# All schemas (for registration)
-# ---------------------------------------------------------------------------
+
+# all schemas for plugin registration
 ALL_SCHEMAS = [
     INGEST_PARTNERS_SCHEMA,
     TRIAGE_PARTNER_SCHEMA,

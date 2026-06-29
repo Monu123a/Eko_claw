@@ -1,24 +1,13 @@
 #!/usr/bin/env python3
 """Hermes Agent entry point for the Partner Follow-up Claw.
 
-This wraps the existing agent as a Hermes-orchestrated workflow. Hermes
-calls our tools via the plugin system (hermes_plugins/) and orchestrates
-the 5-stage pipeline using its own planning + tool-calling loop.
+Runs the 5-stage pipeline via Hermes' tool-calling loop. If hermes-agent
+isn't installed, falls back to the standalone pipeline (run.py).
 
-    Usage (with Hermes Agent installed):
-        python hermes_claw.py --today 2026-06-28
-
-    Without Hermes installed, falls back to the standalone pipeline:
-        python run.py --today 2026-06-28
-
-Why Hermes Agent?
-    Among OpenClaw / NemoClaw / NanoClaw / Hermes, we chose Hermes because:
-    - Native Python SDK (pip install) — our codebase is Python.
-    - Custom tool contracts via a plugin system with JSON schemas.
-    - Built-in persistent memory across runs.
-    - Self-improving learning loop (skills distillation).
-    OpenClaw and NemoClaw are TypeScript/Node.js — would require rewriting.
-    NanoClaw is Docker-focused infra, not a workflow framework.
+Why Hermes over OpenClaw/NemoClaw/NanoClaw:
+  - Native Python SDK, our codebase is already Python
+  - Plugin system with JSON tool contracts
+  - OpenClaw/NemoClaw are TS/Node, NanoClaw is Docker infra
 """
 
 import argparse
@@ -27,7 +16,7 @@ import os
 import sys
 from datetime import datetime, date
 
-# Load .env if python-dotenv is installed.
+# load .env if dotenv is available
 try:
     from dotenv import load_dotenv
     load_dotenv()
@@ -36,7 +25,7 @@ except ImportError:
 
 from src import config
 
-# The Hermes system prompt tells the agent what workflow to follow.
+# system prompt — tells hermes what tools to use and in what order
 SYSTEM_PROMPT = """\
 You are the Partner Follow-up Claw — an autonomous agent that owns the daily
 partner follow-up workflow for Eko's ops team.
@@ -87,17 +76,17 @@ def run_with_hermes(args) -> int:
 
     reference = args.today or date.today().isoformat()
 
-    # Initialise Hermes with our system prompt.
+    # set up hermes agent
     agent = AIAgent(
         model=os.environ.get("LLM_MODEL", "llama-3.3-70b-versatile"),
         quiet_mode=False,
     )
 
-    # Register our tools from the plugin.
+    # wire up our tools
     from hermes_plugins import register
 
     class PluginContext:
-        """Minimal context adapter for Hermes plugin registration."""
+        """Adapter so our register() can work outside hermes too."""
         def __init__(self):
             self.tools = {}
 
@@ -107,7 +96,7 @@ def run_with_hermes(args) -> int:
     ctx = PluginContext()
     register(ctx)
 
-    # Build the task prompt.
+    # kick off the run
     task = (
         "Run the partner follow-up workflow for reference date %s. "
         "Data file: %s. Process every partner." % (reference, args.data)
@@ -118,7 +107,7 @@ def run_with_hermes(args) -> int:
     print("Reference date: %s" % reference)
     print("=" * 64)
 
-    # Run the conversation.
+    # run it
     result = agent.run_conversation(
         user_message=task,
         system_message=SYSTEM_PROMPT,
@@ -131,7 +120,7 @@ def run_with_hermes(args) -> int:
 
 
 def run_standalone(args) -> int:
-    """Fallback: run the standalone pipeline (same as run.py)."""
+    """Fallback: run standalone pipeline (same as run.py)."""
     from src.agent import FollowUpClaw
 
     if args.no_llm:

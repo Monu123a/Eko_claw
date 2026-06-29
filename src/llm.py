@@ -1,15 +1,11 @@
 """The agent's brain.
 
-Three interchangeable brains, picked automatically at runtime:
+Three interchangeable brains, picked at runtime:
+  1. Free LLM (Groq / Gemini / OpenAI-compatible) -> LLM_API_KEY + LLM_BASE_URL
+  2. Anthropic / Claude -> ANTHROPIC_API_KEY
+  3. Rule-based fallback -> no key, no internet, always works
 
-  1. FREE provider (Groq / Google Gemini / any OpenAI-compatible endpoint)
-     -> used when LLM_API_KEY + LLM_BASE_URL are set. No credit card needed.
-  2. Anthropic / Claude  -> used when ANTHROPIC_API_KEY is set.
-  3. Rule-based fallback -> always works, no key, no internet.
-
-This keeps the demo robust (it ALWAYS runs) while letting you use a real LLM for
-free. The agent's logic is provider-agnostic — only this file knows which brain
-is talking.
+The rest of the codebase doesn't know or care which one is active.
 """
 
 import json
@@ -20,7 +16,7 @@ from typing import Tuple
 from . import config
 from .schemas import Partner, Classification
 
-# Both SDKs are optional at import time — the agent still runs without them.
+# both SDKs are optional — agent still runs without them
 try:
     import anthropic
     _HAS_ANTHROPIC = True
@@ -34,7 +30,7 @@ except ImportError:  # pragma: no cover
     _HAS_OPENAI = False
 
 
-# --- provider selection ----------------------------------------------------
+# --- which brain to use ---
 def _provider() -> str:
     """Decide which brain to use, in priority order."""
     if os.environ.get("LLM_API_KEY") and os.environ.get("LLM_BASE_URL"):
@@ -59,7 +55,7 @@ def brain_label() -> str:
     return "rule-based fallback"
 
 
-# --- structured-output schema (Anthropic path) -----------------------------
+# --- classification schema (for Claude's structured output) ---
 CLASSIFY_SCHEMA = {
     "type": "object",
     "properties": {
@@ -117,7 +113,7 @@ def _partner_prompt(partner: Partner, days_since_contact: int) -> str:
     )
 
 
-# --- public API ------------------------------------------------------------
+# --- public API ---
 def classify(partner: Partner, days_since_contact: int) -> Classification:
     """Return a Classification using the active brain, falling back to rules."""
     provider = _provider()
@@ -168,7 +164,7 @@ def draft_reminder(partner: Partner, cls: Classification) -> Tuple[str, str]:
     return text, "template"
 
 
-# --- Anthropic / Claude path ----------------------------------------------
+# --- claude path ---
 def _classify_anthropic(partner: Partner, days: int) -> Classification:
     client = anthropic.Anthropic()
     resp = client.messages.create(
@@ -181,7 +177,7 @@ def _classify_anthropic(partner: Partner, days: int) -> Classification:
     return _classification_from_json(json.loads(text), source="claude")
 
 
-# --- Free / OpenAI-compatible path (Groq, Gemini, OpenRouter, ...) ---------
+# --- free LLM path (groq, gemini, openrouter, etc.) ---
 def _openai_client() -> "OpenAI":
     return OpenAI(api_key=os.environ["LLM_API_KEY"],
                   base_url=os.environ["LLM_BASE_URL"])
@@ -224,7 +220,7 @@ def _classify_openai(partner: Partner, days: int) -> Classification:
     return _classification_from_json(data, source="free-llm")
 
 
-# --- shared helpers --------------------------------------------------------
+# --- helpers ---
 def _extract_json(text: str) -> dict:
     """Tolerantly pull a JSON object out of a model response."""
     text = text.strip()
@@ -254,7 +250,7 @@ def _classification_from_json(data: dict, source: str) -> Classification:
     )
 
 
-# --- Rule-based fallback (no LLM needed) -----------------------------------
+# --- rule-based fallback (no LLM needed) ---
 def _classify_rules(partner: Partner, days_since_contact: int) -> Classification:
     issue = (partner.open_issue or "").lower()
     notes = partner.notes.lower()

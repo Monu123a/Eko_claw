@@ -40,7 +40,7 @@ class FollowUpClaw:
         self.tickets = TicketStore()
         self.send_queue = SendQueue()
 
-    # -- public entry point -------------------------------------------------
+    # --- main entry point ---
     def run(self, data_path: str) -> Dict[str, Any]:
         run_id = "run-%s" % self.today.isoformat()
         run_dir = tools.ensure_run_dir(self.output_dir, run_id)
@@ -80,13 +80,13 @@ class FollowUpClaw:
                             "html": html_path, "run_dir": run_dir}
         return report
 
-    # -- stage 1: ingest ----------------------------------------------------
+    # --- stage 1: ingest ---
     def _ingest(self, data_path: str) -> List[Partner]:
         with open(data_path, "r", encoding="utf-8") as fh:
             raw = json.load(fh)
         return [Partner(**row) for row in raw]
 
-    # -- per-partner: triage -> decide -> act -------------------------------
+    # --- per-partner loop: triage -> decide -> act ---
     def _process_partner(self, partner: Partner, run_dir: str) -> Dict[str, Any]:
         days = partner.days_since_contact(self.today)
 
@@ -114,7 +114,7 @@ class FollowUpClaw:
             "artifacts": artifacts,
         }
 
-    # -- stage 3: decide (explicit escalation policy) -----------------------
+    # --- stage 3: decide (escalation policy) ---
     def _decide(self, partner: Partner, cls: Classification, days: int) -> Decision:
         reasons: List[str] = []
         escalate = False
@@ -139,13 +139,13 @@ class FollowUpClaw:
             escalate = True
             reasons.append("%d follow-ups with no response."
                            % partner.followups_sent)
-        # Uncertainty handling — a real agent knows what it doesn't know.
+        # low confidence -> don't risk it, let a human look
         if cls.confidence < config.MIN_CONFIDENCE:
             escalate = True
             reasons.append("Low confidence (%.2f < %.2f) — routing to a human."
                            % (cls.confidence, config.MIN_CONFIDENCE))
 
-        # Memory: skip re-escalation if already escalated within 3 days.
+        # don't re-escalate if we already did this recently
         if escalate and self.memory.was_escalated_recently(partner.id, within_days=3):
             reasons.append("(Suppressed — already escalated within 3 days.)")
             escalate = False
@@ -153,7 +153,7 @@ class FollowUpClaw:
         if escalate:
             return Decision(action=config.ACTION_ESCALATE, reasons=reasons)
 
-        # Not escalating: nudge if there's an open thread / overdue check-in.
+        # not escalating -> check if a gentle reminder makes sense
         if (partner.open_issue or partner.awaiting_response
                 or days >= config.REMIND_AFTER_DAYS
                 or cls.status in (config.STATUS_PENDING, config.STATUS_DELAYED)):
@@ -165,7 +165,7 @@ class FollowUpClaw:
         return Decision(action=config.ACTION_NONE,
                         reasons=["On track, nothing pending."])
 
-    # -- stage 4: act (use tools) -------------------------------------------
+    # --- stage 4: act (write artifacts) ---
     def _act(self, partner: Partner, cls: Classification, decision: Decision,
              days: int, run_dir: str) -> Dict[str, Any]:
         artifacts: Dict[str, Any] = {"reminder": None, "escalation": None}
@@ -173,7 +173,7 @@ class FollowUpClaw:
         if decision.action == config.ACTION_REMIND:
             text, source = llm.draft_reminder(partner, cls)
             artifacts["reminder"] = tools.write_reminder(run_dir, partner.id, text)
-            # Enqueue in WhatsApp send queue.
+            # queue for WhatsApp delivery
             self.send_queue.enqueue(partner.id, text, partner_name=partner.name)
             tools.write_log(run_dir, {
                 "stage": "ACT", "partner": partner.id, "action": "drafted_reminder",
@@ -205,7 +205,7 @@ class FollowUpClaw:
                 "created_at": self.today.isoformat(),
             }
             artifacts["escalation"] = tools.write_escalation(run_dir, note)
-            # Create a ticket (simulated Jira/Zoho).
+            # create a ticket if there isn't one already
             if not self.tickets.has_open_ticket(partner.id):
                 ticket_id = self.tickets.create_ticket(note)
                 artifacts["ticket_id"] = ticket_id
@@ -238,7 +238,7 @@ class FollowUpClaw:
             return "Key Account Manager"
         return "Partner Success lead"
 
-    # -- stage 5: report ----------------------------------------------------
+    # --- stage 5: report ---
     def _build_report(self, run_id: str,
                       records: List[Dict[str, Any]]) -> Dict[str, Any]:
         def count(action: str) -> int:
@@ -298,7 +298,7 @@ class FollowUpClaw:
         lines.append("")
         return "\n".join(lines)
 
-    # -- self-contained HTML report (open in any browser, no server) --------
+    # --- HTML report (opens in any browser, no server needed) ---
     def _build_html(self, report: Dict[str, Any], run_dir: str) -> str:
         e = html_lib.escape
         t = report["totals"]
@@ -366,7 +366,7 @@ class FollowUpClaw:
             "rem": "".join(rem_cards) or empty,
         }
 
-    # -- console output -----------------------------------------------------
+    # --- console output ---
     def _print_console_summary(self, report: Dict[str, Any]) -> None:
         t = report["totals"]
         self._say("SUMMARY  reviewed=%d  reminders=%d  escalations=%d  no_action=%d"
