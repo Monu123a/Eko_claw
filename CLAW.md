@@ -17,6 +17,25 @@
 
 ---
 
+## Platform Integration — Why Hermes Agent
+
+Among **OpenClaw**, **NemoClaw**, **NanoClaw**, and **Hermes Agent**, we chose **Hermes Agent** because:
+
+| Platform | Why not / why yes |
+|---|---|
+| **Hermes Agent** ✅ | **Native Python SDK** (`pip install`), custom tool contracts via plugin system, built-in persistent memory, self-improving learning loop. Our codebase is Python — Hermes integrates natively. |
+| OpenClaw | TypeScript/Node.js core — would require rewriting the entire Python pipeline. |
+| NemoClaw | NVIDIA's enterprise governance layer — sits on top of other agents, not a workflow framework itself. |
+| NanoClaw | Docker-based security isolation — infrastructure tooling, not a workflow orchestrator. |
+
+### How the integration works
+
+- **`hermes_plugins/`** — Our 5 tools are registered as Hermes-compatible plugins with formal JSON schemas (`schemas.py`) and handler functions (`tools.py`).
+- **`hermes_claw.py`** — New entry point that runs the workflow via Hermes Agent's orchestration loop. Falls back gracefully to standalone mode if Hermes isn't installed.
+- **Standalone mode** — `run.py` still works exactly as before, no Hermes dependency required.
+
+---
+
 ## What the Agent Does — End to End
 
 The Partner Follow-up Claw is an **autonomous agent** (not a chatbot) that owns the daily partner follow-up loop for Eko's ops team. It reads every partner record, understands each situation, decides what to do, acts on it, and produces structured outputs — all without a human in the loop until it encounters uncertainty.
@@ -178,21 +197,29 @@ uploaded correctly? Need your help to move forward.
 
 | Category | What | Purpose |
 |---|---|---|
+| **Agent platform** | Hermes Agent (Nous Research) | Orchestration, tool-calling, plugin system |
 | **Language** | Python 3.10+ | Core agent logic |
 | **LLM — free path** | Groq (Llama 3.3 70B) or Google Gemini 2.0 Flash via OpenAI-compatible SDK | Triage classification + reminder drafting. No credit card needed. |
 | **LLM — paid path** | Anthropic Claude (claude-opus-4-8) with structured outputs | Higher-quality triage when available |
 | **Fallback brain** | Deterministic rule-based engine (keyword + threshold matching) | Always works — no key, no internet |
 | **Web UI** | Streamlit | Interactive browser-based runner (optional) |
 | **Data store** | JSON file (`data/partners.json`) | Simulates CRM / database read |
-| **Agent tools** | Custom Python functions in `tools.py` | `write_reminder()`, `write_escalation()`, `write_log()`, `write_report()`, `write_summary()`, `write_html()` |
-| **Structured outputs** | JSON + Pydantic-style dataclasses (`schemas.py`) | Typed data between stages; machine-readable escalation notes |
+| **Persistent memory** | SQLite (`data/memory.db`) | Tracks partner interaction history across runs |
+| **Ticket system** | SQLite (`data/tickets.db`) | Simulates Jira/Zoho — escalations create tickets with team routing |
+| **Send queue** | SQLite (`data/send_queue.db`) | Simulated WhatsApp Business API — reminders enqueued for delivery |
+| **Agent tools** | Formal tool contracts in `hermes_plugins/schemas.py` | 5 tools with JSON input/output schemas |
+| **Structured outputs** | JSON + dataclasses (`schemas.py`) | Typed data between stages; machine-readable escalation notes |
 | **Config / Policy** | `config.py` | All escalation thresholds in one auditable file |
+| **Tests** | pytest (54 tests) | Escalation policy, low-confidence routing, malformed LLM, fallback mode, memory, tickets, send queue |
 
 ### Key design: the agent has **tools, not just text**
 
-The agent doesn't just generate prose. It performs concrete actions via `tools.py`:
+The agent doesn't just generate prose. It performs concrete actions:
 - **Writes reminder files** to `reminders/<partner_id>.txt`
+- **Enqueues reminders** in the WhatsApp send queue (ready for real API)
 - **Creates structured escalation notes** to `escalations/<partner_id>.json`
+- **Creates tickets** in the SQLite ticket system (routed to the right team)
+- **Records every action** in persistent memory (SQLite) to prevent duplicate escalations
 - **Appends to an audit log** (`activity_log.jsonl`) for every action
 - **Emits a structured JSON report** for downstream consumption
 - **Generates a self-contained HTML report** that opens in any browser with zero setup
@@ -256,13 +283,13 @@ The full pipeline runs **without any human input** and produces a complete, acti
 | Area | What we'd build | Impact |
 |---|---|---|
 | **Real data sources** | Swap `partners.json` for live reads from Eko's CRM / Google Sheet / database. | Agent runs on real, current data instead of a snapshot. |
-| **Real actions** | Wire `write_reminder()` to the **WhatsApp Business API** (send the message for real). Push escalation notes into **Jira / Zoho** as ticketed tasks. | The agent doesn't just draft — it *delivers*. |
+| **Real WhatsApp delivery** | Swap `_simulate_send()` in `send_queue.py` with the **WhatsApp Business API** HTTP call. The queue infrastructure is already built. | The agent doesn't just draft — it *delivers*. |
+| **Real ticketing** | Swap the SQLite `TicketStore` with **Jira / Zoho API** calls. The ticket schema and routing logic are already built. | Escalations flow into the team's real workflow. |
 | **Scheduling** | Run the agent every morning as a cron job / Cloud Function. Push the daily brief to a **Slack channel**. | Zero-touch daily ops workflow. |
-| **Memory** | Persist run history. Track which partners were escalated/reminded before. Escalate faster on repeat offenders; avoid spamming resolved partners. | Smarter, context-aware follow-ups across runs. |
 | **Feedback loop** | Track which reminders actually got a response. Use the signal to **tune policy thresholds** (e.g., adjust `REMIND_AFTER_DAYS`, `MIN_CONFIDENCE`). | The agent improves itself over time. |
 | **Multi-language reminders** | Draft messages in Hindi, Bengali, Tamil — not just English/Hinglish — based on the partner's region. | Better partner experience. |
 | **Richer triage** | Pull in transaction volume trends, last-N-interactions history, and regional churn data to give the LLM more signal. | Higher-quality classifications with fewer false escalations. |
-| **Human-in-the-loop UI** | After an escalation, the human marks it as resolved/overridden. The agent learns from overrides. | Closes the autonomy loop — the agent gets better from human corrections. |
+| **Human-in-the-loop UI** | After an escalation, the human marks it as resolved/overridden in the ticket system. The agent learns from overrides. | Closes the autonomy loop — the agent gets better from human corrections. |
 | **Batch + streaming modes** | Support both daily batch runs (all partners) and real-time event-driven triggers (e.g., a settlement fails → immediately classify and escalate that one partner). | Faster response to urgent issues. |
 
 ---
@@ -271,34 +298,42 @@ The full pipeline runs **without any human input** and produces a complete, acti
 
 ```
 partner-followup-claw/
-├── run.py                 # CLI entry point
+├── run.py                 # CLI entry point (standalone)
+├── hermes_claw.py         # Hermes Agent entry point
 ├── app.py                 # Streamlit web UI
 ├── requirements.txt
 ├── .env.example           # brain configuration (optional)
 ├── CLAW.md                # ← this file
 ├── README.md              # full documentation
+├── hermes_plugins/        # Hermes Agent tool integration
+│   ├── plugin.yaml        # plugin manifest
+│   ├── __init__.py        # tool registration
+│   ├── schemas.py         # formal JSON tool contracts (input/output)
+│   └── tools.py           # tool handler wrappers
 ├── data/
-│   └── partners.json      # sample partner records (7 partners)
+│   ├── partners.json      # sample partner records (7 partners)
+│   ├── memory.db          # persistent memory (auto-created)
+│   ├── tickets.db         # ticket system (auto-created)
+│   └── send_queue.db      # WhatsApp queue (auto-created)
 ├── src/
 │   ├── config.py          # escalation policy + thresholds
 │   ├── schemas.py         # typed data structures between stages
 │   ├── llm.py             # the brain: free LLM / Claude / rule-based fallback
 │   ├── tools.py           # the agent's actions (write reminders, escalations, logs)
-│   └── agent.py           # the 5-stage orchestration pipeline
+│   ├── agent.py           # the 5-stage orchestration pipeline
+│   ├── memory.py          # SQLite persistent memory across runs
+│   ├── tickets.py         # SQLite ticket system (simulates Jira/Zoho)
+│   └── send_queue.py      # simulated WhatsApp Business API send queue
+├── tests/                 # 54 tests
+│   ├── test_escalation_policy.py
+│   ├── test_low_confidence.py
+│   ├── test_malformed_llm.py
+│   ├── test_fallback_mode.py
+│   ├── test_memory.py
+│   ├── test_tickets.py
+│   └── test_send_queue.py
 └── outputs/
     └── run-2026-06-28/    # example run output
-        ├── run_report.json
-        ├── summary.md
-        ├── report.html
-        ├── activity_log.jsonl
-        ├── reminders/
-        │   ├── EKO-1002.txt
-        │   ├── EKO-1006.txt
-        │   └── EKO-1007.txt
-        └── escalations/
-            ├── EKO-1003.json
-            ├── EKO-1004.json
-            └── EKO-1005.json
 ```
 
 ---
@@ -307,9 +342,12 @@ partner-followup-claw/
 
 ```bash
 # Clone and run — no API key needed (rule-based brain works offline):
-git clone https://github.com/harshahlawat/partner-followup-claw.git
-cd partner-followup-claw
+git clone https://github.com/Monu123a/Eko_claw.git
+cd Eko_claw
 python run.py --today 2026-06-28
+
+# Hermes Agent mode (with Hermes installed):
+python hermes_claw.py --today 2026-06-28
 
 # For a real LLM brain (free, no credit card):
 pip install openai
@@ -317,6 +355,9 @@ export LLM_API_KEY=gsk_...          # from https://console.groq.com
 export LLM_BASE_URL=https://api.groq.com/openai/v1
 export LLM_MODEL=llama-3.3-70b-versatile
 python run.py --today 2026-06-28
+
+# Run all tests:
+python -m pytest tests/ -v
 
 # Web UI:
 pip install streamlit

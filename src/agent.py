@@ -24,6 +24,9 @@ from typing import Any, Dict, List, Optional
 
 from . import config, llm, tools
 from .schemas import Partner, Classification, Decision
+from .memory import PartnerMemory
+from .tickets import TicketStore
+from .send_queue import SendQueue
 
 
 class FollowUpClaw:
@@ -33,6 +36,9 @@ class FollowUpClaw:
         self.today = reference_date or date.today()
         self.output_dir = output_dir
         self.verbose = verbose
+        self.memory = PartnerMemory()
+        self.tickets = TicketStore()
+        self.send_queue = SendQueue()
 
     # -- public entry point -------------------------------------------------
     def run(self, data_path: str) -> Dict[str, Any]:
@@ -139,6 +145,11 @@ class FollowUpClaw:
             reasons.append("Low confidence (%.2f < %.2f) — routing to a human."
                            % (cls.confidence, config.MIN_CONFIDENCE))
 
+        # Memory: skip re-escalation if already escalated within 3 days.
+        if escalate and self.memory.was_escalated_recently(partner.id, within_days=3):
+            reasons.append("(Suppressed — already escalated within 3 days.)")
+            escalate = False
+
         if escalate:
             return Decision(action=config.ACTION_ESCALATE, reasons=reasons)
 
@@ -162,10 +173,16 @@ class FollowUpClaw:
         if decision.action == config.ACTION_REMIND:
             text, source = llm.draft_reminder(partner, cls)
             artifacts["reminder"] = tools.write_reminder(run_dir, partner.id, text)
+            # Enqueue in WhatsApp send queue.
+            self.send_queue.enqueue(partner.id, text, partner_name=partner.name)
             tools.write_log(run_dir, {
                 "stage": "ACT", "partner": partner.id, "action": "drafted_reminder",
                 "source": source, "path": artifacts["reminder"],
             })
+            self.memory.record_action(
+                partner.id, self.today, config.ACTION_REMIND,
+                status=cls.status, severity=cls.severity, confidence=cls.confidence,
+            )
 
         elif decision.action == config.ACTION_ESCALATE:
             note = {
@@ -188,14 +205,26 @@ class FollowUpClaw:
                 "created_at": self.today.isoformat(),
             }
             artifacts["escalation"] = tools.write_escalation(run_dir, note)
+            # Create a ticket (simulated Jira/Zoho).
+            if not self.tickets.has_open_ticket(partner.id):
+                ticket_id = self.tickets.create_ticket(note)
+                artifacts["ticket_id"] = ticket_id
             tools.write_log(run_dir, {
                 "stage": "ACT", "partner": partner.id, "action": "created_escalation",
                 "severity": cls.severity, "path": artifacts["escalation"],
             })
+            self.memory.record_action(
+                partner.id, self.today, config.ACTION_ESCALATE,
+                status=cls.status, severity=cls.severity, confidence=cls.confidence,
+            )
         else:
             tools.write_log(run_dir, {
                 "stage": "ACT", "partner": partner.id, "action": "no_action",
             })
+            self.memory.record_action(
+                partner.id, self.today, config.ACTION_NONE,
+                status=cls.status, severity=cls.severity, confidence=cls.confidence,
+            )
         return artifacts
 
     @staticmethod

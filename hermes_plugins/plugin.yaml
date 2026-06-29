@@ -1,0 +1,7 @@
+name: partner-followup-claw
+version: "1.0"
+description: >
+  Partner Follow-up Claw — an autonomous agent that owns Eko's partner
+  follow-up workflow. Provides tools for ingesting partner data, triaging
+  partners, drafting reminders, creating escalation notes, and generating
+  reports.
