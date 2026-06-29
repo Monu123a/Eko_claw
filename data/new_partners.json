@@ -1,0 +1,41 @@
+[
+  {
+    "id": "EKO-3001",
+    "name": "Ram Prasad Electronics",
+    "owner": "Ram Prasad",
+    "region": "Varanasi, UP",
+    "segment": "Distributor",
+    "monthly_volume_inr": 120000,
+    "last_contact_date": "2026-06-10",
+    "followups_sent": 2,
+    "awaiting_response": true,
+    "open_issue": "Micro-ATM device screen is shattered.",
+    "notes": "Very high volume partner. Device broke two weeks ago. He is angry because the replacement hasn't arrived yet."
+  },
+  {
+    "id": "EKO-3002",
+    "name": "Super Fast Money Point",
+    "owner": "Vikram Singh",
+    "region": "Indore, MP",
+    "segment": "Retailer",
+    "monthly_volume_inr": 250000,
+    "last_contact_date": "2026-06-27",
+    "followups_sent": 0,
+    "awaiting_response": false,
+    "open_issue": "Customer reported fake transactions.",
+    "notes": "URGENT: A customer complained that this shopkeeper is charging extra cash fees for AePS withdrawals. Potential fraud happening here."
+  },
+  {
+    "id": "EKO-3003",
+    "name": "Alok Supermart",
+    "owner": "Alok Verma",
+    "region": "Delhi",
+    "segment": "Retailer",
+    "monthly_volume_inr": 45000,
+    "last_contact_date": "2026-06-26",
+    "followups_sent": 0,
+    "awaiting_response": false,
+    "open_issue": null,
+    "notes": "Excellent partner. Transactions are growing every week. Very happy with the platform."
+  }
+]

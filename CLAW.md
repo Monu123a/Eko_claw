@@ -13,7 +13,7 @@
 
 ## Demo Video
 
-**[▶️ Watch the demo](https://drive.google.com/file/d/1ZHbMt4Z27PiyORmK-9_7cTpwOV7-gXEk/view?usp=sharing)**
+**[▶️ Watch the demo](https://drive.google.com/file/d/1VvF1L-UrWNQIOxnRKZG_7D8pqpx7uSfU/view?usp=sharing)**
 
 ---
 
