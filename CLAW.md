@@ -36,7 +36,33 @@ Among **OpenClaw**, **NemoClaw**, **NanoClaw**, and **Hermes Agent**, we chose *
 
 ---
 
+## Harness Engineering — "The Model Is the Easy Part"
+
+Following the principles from the attached resources, this agent is built on the thesis that **Agent = Model + Harness**. The model is incidental; the harness is the moat.
+
+| Layer | What it means | How this Claw implements it |
+|---|---|---|
+| **Prompt engineering** | What you tell the model in a single interaction | System prompt in `llm.py` — structured classification prompt with explicit output schema |
+| **Context engineering** | The full set of tokens the model receives — memory, tools, docs, history | `PartnerMemory` (SQLite) feeds prior actions into the context; each partner's full record is assembled before classification |
+| **Harness engineering** | System-wide constraints, verification, feedback loops, lifecycle management | The **escalation policy** (`config.py`), **duplicate suppression** (memory), **fallback brain**, **ticket routing**, **formal tool contracts**, **54 automated tests** |
+
+### Why the model is incidental here
+
+The Claw runs with **three different brains** (Groq/Gemini, Claude, rule-based) — and produces structurally identical outputs regardless of which one is active. The model classifies; the **harness decides, acts, verifies, and persists.** Swap the model tomorrow and the escalation policy, ticket routing, send queue, memory, and audit trail all remain the same. This is harness engineering.
+
+### Harness features in this Claw
+
+- **Deterministic policy** — The model interprets messy data; the explicit rules in `config.py` decide whether to escalate, remind, or skip. The model doesn't get to override the policy.
+- **Low-confidence routing** — If the model isn't sure (confidence < 0.55), the harness escalates to a human instead of acting on a shaky read.
+- **Persistent memory** — The harness remembers across runs. A partner escalated yesterday won't be escalated again today.
+- **Failure recovery** — LLM fails? Harness falls back to rules. Malformed JSON? Harness normalises it. No API key? Harness runs offline.
+- **Formal tool contracts** — Every tool has a JSON schema. The harness enforces what the model can do.
+- **Verification** — 54 tests verify the harness, not the model. The model can change; the harness guarantees stay.
+
+---
+
 ## What the Agent Does — End to End
+
 
 The Partner Follow-up Claw is an **autonomous agent** (not a chatbot) that owns the daily partner follow-up loop for Eko's ops team. It reads every partner record, understands each situation, decides what to do, acts on it, and produces structured outputs — all without a human in the loop until it encounters uncertainty.
 
@@ -266,13 +292,18 @@ If none of these trigger: send a **gentle reminder** if there's an open thread o
 3. **Classify** every partner on 4 dimensions: status, severity, sentiment, and model confidence.
 4. **Decide** the right action for each partner using an explicit, auditable policy.
 5. **Draft** warm, situation-specific WhatsApp-style reminders tailored to each partner's context.
-6. **Create** structured escalation notes with the issue, reasons for escalation, pending actions, and the recommended internal owner (Finance, Field Support, Key Account Manager, etc.).
-7. **Route** escalations to the right team based on the nature of the issue.
-8. **Log** every action to a JSONL audit trail.
-9. **Report** in three formats: machine-readable JSON, human-readable markdown brief, and a visual HTML report.
-10. **Handle failure gracefully** — LLM outages, malformed responses, missing keys — the agent always completes the run.
-11. **Escalate on uncertainty** — if the model isn't confident enough, it routes to a human instead of guessing.
-12. **Run via CLI or web UI** — `python run.py` for scripts/cron, `streamlit run app.py` for interactive use.
+6. **Enqueue reminders** in a WhatsApp Business API send queue (simulated, ready to swap for real API).
+7. **Create** structured escalation notes with the issue, reasons for escalation, pending actions, and the recommended internal owner (Finance, Field Support, Key Account Manager, etc.).
+8. **Create tickets** in a SQLite-backed ticket system (simulating Jira/Zoho) for each escalation, auto-routed to the right team.
+9. **Route** escalations to the right team based on the nature of the issue.
+10. **Remember** actions across runs via persistent SQLite memory — prevents duplicate escalations within 3 days.
+11. **Log** every action to a JSONL audit trail.
+12. **Report** in three formats: machine-readable JSON, human-readable markdown brief, and a visual HTML report.
+13. **Handle failure gracefully** — LLM outages, malformed responses, missing keys — the agent always completes the run.
+14. **Escalate on uncertainty** — if the model's confidence is below 0.55, it routes to a human instead of guessing.
+15. **Integrate with Hermes Agent** — tools are registered as formal plugins with JSON input/output schemas. Falls back to standalone mode if Hermes isn't installed.
+16. **Run via CLI, Hermes, or web UI** — `run.py` (standalone), `hermes_claw.py` (Hermes orchestration), `streamlit run app.py` (browser UI).
+17. **Tested** — 54 automated tests covering escalation policy, low-confidence routing, malformed LLM output, fallback mode, memory, tickets, and send queue.
 
 The full pipeline runs **without any human input** and produces a complete, actionable daily brief.
 

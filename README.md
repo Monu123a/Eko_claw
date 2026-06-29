@@ -2,11 +2,13 @@
 
 **An autonomous AI agent that owns the partner follow-up workflow end-to-end** — it
 reads partner data, understands each situation, decides what to do, drafts reminders,
-creates structured escalation notes, and routes high-risk or uncertain cases to a
-human. Built for **Eko's** mission of empowering micro-entrepreneur partners.
+creates structured escalation notes, routes high-risk or uncertain cases to a
+human, creates tickets, enqueues WhatsApp messages, and remembers what it did across runs.
+Built for **Eko's** mission of empowering micro-entrepreneur partners.
 
 > Track 1 — Forward Deployed AI Accelerator. An agent, not a chatbot: it **acts**,
 > produces **structured outputs**, and **escalates** when it isn't sure.
+> Integrates with **Hermes Agent** (Nous Research) for formal tool contracts and orchestration.
 
 ---
 
@@ -33,34 +35,44 @@ messages, and flags the serious cases. **This agent owns that loop.**
 ## What makes it a *real* agent (not a chatbot)
 
 1. **Owns a bounded workflow** — one clear job, run end-to-end, no human in the loop until escalation.
-2. **It acts via tools** — writes reminders, escalation notes, logs, and reports to disk.
-3. **Structured outputs** — every run emits machine-readable JSON, not just prose.
-4. **Handles uncertainty** — when the model's confidence is low, the agent *escalates to a human instead of guessing.* This is the feature most "agent" demos skip.
-5. **Auditable policy** — the decision to escalate is governed by explicit rules in [config.py](src/config.py), separate from the model's judgement.
+2. **It acts via tools** — writes reminders, escalation notes, logs, and reports to disk; enqueues WhatsApp messages; creates tickets.
+3. **Formal tool contracts** — each tool has a JSON input/output schema (see [hermes_plugins/schemas.py](hermes_plugins/schemas.py)).
+4. **Structured outputs** — every run emits machine-readable JSON, not just prose.
+5. **Persistent memory** — remembers actions across runs; prevents duplicate escalations within 3 days.
+6. **Handles uncertainty** — when the model's confidence is low, the agent *escalates to a human instead of guessing.*
+7. **Auditable policy** — the decision to escalate is governed by explicit rules in [config.py](src/config.py), separate from the model's judgement.
+8. **Platform integration** — tools registered as **Hermes Agent** plugins with JSON schemas. Documented rationale for choosing Hermes over OpenClaw/NemoClaw/NanoClaw.
+9. **Tested** — 54 automated tests (escalation policy, low-confidence routing, malformed LLM, fallback mode, memory, tickets, send queue).
 
 ---
 
 ## Architecture
 
 ```
-                         ┌──────────────────────────────────────────────┐
-   data/partners.json ──▶│              FollowUpClaw  (the agent)         │
-                         │                                                │
-                         │  INGEST → TRIAGE → DECIDE → ACT → REPORT        │
-                         │            │        │       │                  │
-                         │       ┌────┘   ┌────┘   ┌───┴────────┐         │
-                         │   Claude /   explicit   tools (write  │         │
-                         │   rule-based  escalation reminders,   │         │
-                         │   brain       policy     escalations, │         │
-                         │   (llm.py)   (config.py) logs, report)│         │
-                         └──────────────────────────────┬───────┘         │
-                                                        ▼
-                                          outputs/run-YYYY-MM-DD/
-                                          ├── run_report.json   (structured)
-                                          ├── summary.md        (daily brief)
-                                          ├── activity_log.jsonl(audit trail)
-                                          ├── reminders/*.txt
-                                          └── escalations/*.json
+                    ┌─────────────────────────────────────┐
+                    │        Hermes Agent (orchestrator)   │
+                    │   OR   run.py (standalone mode)      │
+                    └──────────────┬──────────────────────┘
+                                   │
+                    ┌──────────────▼──────────────────────┐
+                    │       FollowUpClaw  (the agent)      │
+                    │                                      │
+                    │  INGEST → TRIAGE → DECIDE → ACT → REPORT │
+                    │              │        │       │       │
+                    │         LLM brain  policy   tools    │
+                    │         (llm.py)  (config)  ┌───┘    │
+                    │                             │        │
+                    │    ┌────────────────────────┤        │
+                    │    │         │         │    │        │
+                    │  write    write    enqueue  create   │
+                    │  reminder escalation  to   ticket   │
+                    │  (disk)   (disk)   WhatsApp (SQLite) │
+                    │                    queue             │
+                    └──────────────┬──────────────────────┘
+                                   │
+               ┌───────────────────┼───────────────────┐
+               ▼                   ▼                   ▼
+        outputs/run-*/      data/memory.db      data/tickets.db
 ```
 
 ### The 5-stage pipeline
@@ -156,6 +168,9 @@ run only — never written to disk.
 ```bash
 # Runs immediately with the rule-based brain — no install, no key:
 python run.py --today 2026-06-28
+
+# Hermes Agent mode (with Hermes installed):
+python hermes_claw.py --today 2026-06-28
 ```
 
 To use a real LLM brain (optional), add a key — a **free** one works fine:
@@ -226,29 +241,66 @@ python run.py [--data PATH] [--out DIR] [--today YYYY-MM-DD] [--no-llm]
 
 ```
 partner-followup-claw/
-├── run.py                 # CLI entry point
+├── run.py                 # CLI entry point (standalone)
+├── hermes_claw.py         # Hermes Agent entry point
+├── app.py                 # Streamlit web UI
 ├── requirements.txt
 ├── .env.example
+├── CLAW.md                # full submission document
+├── hermes_plugins/        # Hermes Agent tool integration
+│   ├── plugin.yaml        # plugin manifest
+│   ├── __init__.py        # tool registration
+│   ├── schemas.py         # formal JSON tool contracts (input/output)
+│   └── tools.py           # tool handler wrappers
 ├── data/
-│   └── partners.json      # sample partner records
-└── src/
-    ├── config.py          # escalation policy + thresholds (the agent's "rules")
-    ├── schemas.py         # typed data passed between stages
-    ├── llm.py             # the brain: Claude + rule-based fallback
-    ├── tools.py           # the agent's actions (write reminders/escalations/logs/report)
-    └── agent.py           # the 5-stage orchestration pipeline
+│   ├── partners.json      # sample partner records (7 partners)
+│   ├── memory.db          # persistent memory (auto-created)
+│   ├── tickets.db         # ticket system (auto-created)
+│   └── send_queue.db      # WhatsApp queue (auto-created)
+├── src/
+│   ├── config.py          # escalation policy + thresholds (the agent's "rules")
+│   ├── schemas.py         # typed data passed between stages
+│   ├── llm.py             # the brain: free LLM / Claude / rule-based fallback
+│   ├── tools.py           # the agent's actions (write reminders/escalations/logs/report)
+│   ├── agent.py           # the 5-stage orchestration pipeline
+│   ├── memory.py          # SQLite persistent memory across runs
+│   ├── tickets.py         # SQLite ticket system (simulates Jira/Zoho)
+│   └── send_queue.py      # simulated WhatsApp Business API send queue
+├── tests/                 # 54 automated tests
+│   ├── test_escalation_policy.py
+│   ├── test_low_confidence.py
+│   ├── test_malformed_llm.py
+│   ├── test_fallback_mode.py
+│   ├── test_memory.py
+│   ├── test_tickets.py
+│   └── test_send_queue.py
+└── outputs/
+    └── run-2026-06-28/    # example run output
 ```
+
+---
+
+## Running the tests
+
+```bash
+pip install pytest
+python -m pytest tests/ -v
+# 54 passed
+```
+
+Tests cover: escalation policy rules, low-confidence routing, malformed LLM output handling, rule-based fallback mode, persistent memory, ticket system, and WhatsApp send queue.
 
 ---
 
 ## How I'd extend it (productionising)
 
 - **Real data sources:** swap `partners.json` for a CRM / Google Sheet / database read.
-- **Real actions:** wire the reminder tool to the WhatsApp Business API; push escalation notes into Jira/Zoho as tickets.
+- **Real WhatsApp delivery:** swap `_simulate_send()` with WhatsApp Business API HTTP calls — the queue infrastructure is already built.
+- **Real ticketing:** swap the SQLite `TicketStore` with Jira / Zoho API calls — the schema and routing logic are already built.
 - **Scheduling:** run it every morning as a cron job → a daily ops brief in Slack.
 - **Feedback loop:** track which reminders got a response to tune the policy thresholds.
-- **Memory:** remember prior runs so the agent escalates faster on repeat offenders.
+- **Multi-language:** draft messages in Hindi, Bengali, Tamil based on the partner's region.
 
 ---
 
-*Built as a small but real agentic workflow for Eko's Forward Deployed AI Accelerator track.*
+*Built by Harsh Ahlawat for Eko's Forward Deployed AI Accelerator track.*
