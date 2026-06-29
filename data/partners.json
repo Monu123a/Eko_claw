@@ -1,0 +1,93 @@
+[
+  {
+    "id": "EKO-1001",
+    "name": "Sunrise Mobile & Recharge",
+    "owner": "Ramesh Yadav",
+    "region": "Lucknow, UP",
+    "segment": "Retailer",
+    "monthly_volume_inr": 18500,
+    "last_contact_date": "2026-06-25",
+    "followups_sent": 0,
+    "awaiting_response": false,
+    "open_issue": null,
+    "notes": "Onboarded last month. Doing AePS withdrawals smoothly. Asked about cash-back scheme on last call and seemed happy."
+  },
+  {
+    "id": "EKO-1002",
+    "name": "Maa Vaishno Kirana Store",
+    "owner": "Sunita Devi",
+    "region": "Patna, Bihar",
+    "segment": "Retailer",
+    "monthly_volume_inr": 9200,
+    "last_contact_date": "2026-06-18",
+    "followups_sent": 1,
+    "awaiting_response": true,
+    "open_issue": "Wants help enabling DMT (money transfer) on the app.",
+    "notes": "We sent KYC steps over WhatsApp 10 days ago. No reply yet. Volume has been flat."
+  },
+  {
+    "id": "EKO-1003",
+    "name": "Khan Telecom Point",
+    "owner": "Imran Khan",
+    "region": "Bhopal, MP",
+    "segment": "Distributor",
+    "monthly_volume_inr": 76000,
+    "last_contact_date": "2026-06-09",
+    "followups_sent": 2,
+    "awaiting_response": true,
+    "open_issue": "Settlement of 4,300 INR pending for 3 days; partner is upset.",
+    "notes": "High-volume distributor. Last message: 'paisa abhi tak nahi aaya, customers wait kar rahe hain'. Risk of churn — competitor agent in same market."
+  },
+  {
+    "id": "EKO-1004",
+    "name": "Janseva CSC Kendra",
+    "owner": "Pooja Sharma",
+    "region": "Jaipur, Rajasthan",
+    "segment": "CSC / Service Centre",
+    "monthly_volume_inr": 41000,
+    "last_contact_date": "2026-06-12",
+    "followups_sent": 1,
+    "awaiting_response": true,
+    "open_issue": "Device (micro-ATM) showing fingerprint error intermittently.",
+    "notes": "Reported hardware issue. We promised a callback from support; not sure if it happened. Good partner otherwise."
+  },
+  {
+    "id": "EKO-1005",
+    "name": "New Bharat Mobile",
+    "owner": "Arvind Gupta",
+    "region": "Kanpur, UP",
+    "segment": "Retailer",
+    "monthly_volume_inr": 5400,
+    "last_contact_date": "2026-05-28",
+    "followups_sent": 3,
+    "awaiting_response": true,
+    "open_issue": "Stopped transacting. Reason unclear.",
+    "notes": "Was active, then went silent. Three follow-ups, no response. Might have switched to another platform."
+  },
+  {
+    "id": "EKO-1006",
+    "name": "Shree Ganesh Communications",
+    "owner": "Deepak Patel",
+    "region": "Surat, Gujarat",
+    "segment": "Retailer",
+    "monthly_volume_inr": 22300,
+    "last_contact_date": "2026-06-22",
+    "followups_sent": 0,
+    "awaiting_response": false,
+    "open_issue": "Asked when the next incentive payout lands.",
+    "notes": "Routine query, partner is active and positive. Just wants payout date confirmation."
+  },
+  {
+    "id": "EKO-1007",
+    "name": "Annapurna Digital Seva",
+    "owner": "Lakshmi Nair",
+    "region": "Kochi, Kerala",
+    "segment": "CSC / Service Centre",
+    "monthly_volume_inr": 58000,
+    "last_contact_date": "2026-06-20",
+    "followups_sent": 0,
+    "awaiting_response": false,
+    "open_issue": null,
+    "notes": "Strong, growing centre. Last interaction was a training request for a new staff member, which we scheduled."
+  }
+]

@@ -1,0 +1,14 @@
+# The agent runs with NO dependencies at all (rule-based brain).
+# Install one of these only if you want a real LLM brain:
+
+# For a FREE LLM (Groq, Google Gemini, OpenRouter — any OpenAI-compatible API):
+openai>=1.0.0
+
+# For Anthropic / Claude (paid):
+anthropic>=0.40.0
+
+# Optional convenience: loads keys from a .env file.
+python-dotenv>=1.0.0
+
+# For the browser UI (streamlit run app.py):
+streamlit>=1.30.0
