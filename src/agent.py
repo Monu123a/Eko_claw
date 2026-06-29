@@ -66,6 +66,9 @@ class FollowUpClaw:
         html_path = tools.write_html(run_dir, self._build_html(report, run_dir))
         tools.write_log(run_dir, {"stage": "REPORT", "report": report_path})
 
+        # --- dispatch the queue ---
+        dispatched = self.send_queue.process_queue()
+
         self._say("-" * 64)
         self._print_console_summary(report)
         self._say("\nArtifacts written to: %s/" % run_dir)
@@ -75,6 +78,10 @@ class FollowUpClaw:
         self._say("  - activity_log.jsonl(every action the agent took)")
         self._say("  - reminders/        (drafted messages)")
         self._say("  - escalations/      (structured escalation notes)")
+        
+        if dispatched:
+            self._say("\nWhatsApp Dispatch:")
+            self._say("  ✅ Processed %d pending messages from the queue." % len(dispatched))
 
         report["_paths"] = {"report": report_path, "summary": summary_path,
                             "html": html_path, "run_dir": run_dir}

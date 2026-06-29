@@ -86,12 +86,10 @@ class SendQueue:
     def _simulate_send(entry: Dict[str, Any]) -> bool:
         """Simulate sending a WhatsApp message.
 
-        In production, replace this with:
-            requests.post('https://graph.facebook.com/v18.0/PHONE_ID/messages',
-                          headers={'Authorization': 'Bearer TOKEN'},
-                          json={'messaging_product': 'whatsapp', 'to': phone,
-                                'text': {'body': message}})
+        In production, replace this with an HTTP call to the WhatsApp Business API.
         """
+        print("\n[WhatsApp API] 📲 Sending message to %s (%s):" % (entry["partner_id"], entry["partner_name"]))
+        print("  \"%s\"" % entry["message"])
         return True
 
     def close(self) -> None:
